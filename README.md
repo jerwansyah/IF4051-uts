@@ -10,5 +10,5 @@ Author: 13519116 - Jeane Mikha Erwansyah
 
 ## How to run
 
-[How to run frontend](./fe/README.md)
-[How to run backend](./be/README.md)
+1. Run backend ([How to run backend](./be/README.md))
+2. Run frontend ([How to run frontend](./fe/README.md))
