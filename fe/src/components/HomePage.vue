@@ -26,7 +26,7 @@
           type="text"
           class="w-12 text-right bg-slate-100 rounded-md px-2"
         />
-        <p class="leading-none py-2 ml-2">minutes</p>
+        <p class="leading-none py-2 ml-2">seconds</p>
         <button
           class="ml-10 text-sm rounded-lg px-8 py-2 bg-slate-200 hover:bg-slate-300 active:bg-slate-400"
           @click="handleLampTimer"
@@ -43,7 +43,7 @@
           type="text"
           class="w-12 text-right bg-slate-100 rounded-md px-2"
         />
-        <p class="leading-none py-2 ml-2">minutes</p>
+        <p class="leading-none py-2 ml-2">seconds</p>
         <button
           class="ml-10 text-sm rounded-lg px-8 py-2 bg-slate-200 hover:bg-slate-300 active:bg-slate-400"
           @click="handleACTimer"
@@ -113,10 +113,33 @@ export default {
       } else if (topic === "ac/status") {
         this.isACOn = message === "ON";
       } else if (topic === "lamp/time") {
-        this.lampTime = message;
+        this.lampTime = this.getTime(message);
       } else if (topic === "ac/time") {
-        this.acTime = message;
+        this.acTime = this.getTime(message);
       }
+    },
+    handleLampTimer() {
+      const data = {
+        topic: "lamp/timer",
+        message: this.lampTimer,
+      };
+      this.socket.send(JSON.stringify(data));
+    },
+    handleACTimer() {
+      const data = {
+        topic: "ac/timer",
+        message: this.acTimer,
+      };
+      this.socket.send(JSON.stringify(data));
+    },
+    sec2min(sec) {
+      return Math.floor(sec / 60);
+    },
+    getTime(millis) {
+      if (millis < 60000) {
+        return Math.floor(millis / 1000) + " seconds up";
+      }
+      return this.sec2min(Math.floor(millis / 1000)) + " minutes up";
     },
   },
 };
