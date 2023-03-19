@@ -2,7 +2,7 @@ const mqtt = require("mqtt");
 const WebSocket = require("ws");
 
 const MQTT_BROKER_URL = "mqtt://127.0.0.1:1883";
-const MQTT_TOPICS = ["lamp/status", "ac/status"];
+const MQTT_TOPICS = ["lamp/status", "ac/status", "lamp/time", "ac/time"];
 
 // connect to the mqtt broker
 const client = mqtt.connect(MQTT_BROKER_URL);
@@ -36,8 +36,12 @@ wss.on("connection", (ws) => {
     console.log(`Received message from client: ${message}`);
 
     // publish the message to mqtt server
-    const { topic, message: msg } = JSON.parse(message);
-    client.publish(topic, msg);
+    try {
+      const obj = JSON.parse(message);
+      client.publish(obj.topic, obj.message);
+    } catch {
+      console.log("Invalid message format");
+    }
   });
 
   ws.on("close", () => {
