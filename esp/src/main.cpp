@@ -1,27 +1,32 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <esp32-hal-ledc.h>
 
 
-const char* SSID = "TP-Link_8E6C";
-const char* PASSWORD = "66101710";
-const char* MQTT_SERVER = "192.168.1.110";
+const char* SSID = "👻";
+const char* PASSWORD = "peepeepoopoo";
+// const char* MQTT_SERVER = "192.168.1.110";
+const char* MQTT_SERVER = "192.168.17.104";
 const int MQTT_PORT = 1883;
 
-const char* PUBLISHER_TOPIC = "blink/frequency";
-const char* SUBSCRIBER_TOPIC = "test";
+const char* PUBLISHER_TOPIC_1 = "lamp/status";
+const char* PUBLISHER_TOPIC_2 = "ac/status";
+const char* PUBLISHER_TOPIC_3 = "lamp/time";
+const char* PUBLISHER_TOPIC_4 = "ac/time";
+const char* SUBSCRIBER_TOPIC_1 = "lamp/command";
+const char* SUBSCRIBER_TOPIC_2 = "ac/command";
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
-int frequency = 10;                 // initial frequency is 10 Hz
-int intervalMs = 1000 / frequency;  // LED on/off interval based on the frequency
-bool isButtonPressed = false;       // button flag to avoid multiple increments
-bool prevButtonState = false;       // button flag to avoid multiple increments
-
 const int LED_PIN = 2;
-const int BUTTON_PIN = 0;
-const int MAX_FREQUENCY = 30;
 
+bool isLampOn;
+bool isACOn;
+int lampTime;
+int acTime;
+int lampStartTime;
+int acStartTime;
 
 void setup_wifi() {
   delay(10);
@@ -44,7 +49,7 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  // handle incoming MQTT messages if needed
+  // handle incoming mqtt messages if needed
   String message = "";
   for (int i = 0; i < length; i++) {
     message += (char)payload[i];
@@ -53,21 +58,36 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print(": ");
   Serial.println(message);
+
+  if (strcmp(topic, SUBSCRIBER_TOPIC_1) == 0) {
+    if (message == "ON") {
+      isLampOn = true;
+    } else if (message == "OFF") {
+      isLampOn = false;
+    }
+  } else if (strcmp(topic, SUBSCRIBER_TOPIC_2) == 0) {
+    if (message == "ON") {
+      isACOn = true;
+    } else if (message == "OFF") {
+      isACOn = false;
+    }
+  }
 }
 
 void reconnect() {
   // loop until we're reconnected
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
-    // create a random client ID
+    // create a random client id
     String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
     // attempt to connect
     WiFi.mode(WIFI_STA);
     if (mqttClient.connect(clientId.c_str())) {
       Serial.println("connected");
-      // once connected, subscribe to any MQTT topics if needed
-      mqttClient.subscribe(SUBSCRIBER_TOPIC);
+      // once connected, subscribe to any mqtt topics if needed
+      mqttClient.subscribe(SUBSCRIBER_TOPIC_1);
+      mqttClient.subscribe(SUBSCRIBER_TOPIC_2);
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
@@ -78,63 +98,67 @@ void reconnect() {
 }
 
 void setup() {
-  pinMode(LED_PIN, OUTPUT);           // set the LED pin as an output
-  pinMode(BUTTON_PIN, INPUT);         // set the button pin as an input
+  pinMode(LED_PIN, OUTPUT);           // set the led pin as an output
   Serial.begin(115200);               // start the serial port
-  setup_wifi();                       // start setting up the WiFi connection
-  mqttClient.setClient(wifiClient);   // set the MQTT client
+  setup_wifi();                       // start setting up the wifi connection
+  mqttClient.setClient(wifiClient);   // set the mqtt client
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setCallback(callback);
 
-  digitalRead(BUTTON_PIN);
+  ledcSetup(0, 5000, 8);      // channel 0, 5khz frequency, 8-bit resolution
+  ledcAttachPin(LED_PIN, 0);  // attach the led pin to channel 0
+
+  // set initial state
+  isLampOn = true;
+  isACOn = true;
+  lampStartTime = millis();
+  acStartTime = millis();
 }
 
 void loop() {
-  // check if we're connected to the MQTT server
+  // check if we're connected to the mqtt server
   if (!mqttClient.connected()) {
     reconnect();
   }
 
-  // handle any incoming MQTT messages
+  // handle any incoming mqtt messages
   mqttClient.loop();
 
-  // clear the isButtonPressed flag if the button is not pressed
-  if (digitalRead(BUTTON_PIN) == LOW) {
-    isButtonPressed = true;
+  // handle iots
+  int startTime = millis();
+  if (isLampOn) {
+    ledcWrite(0, 256);
+  } else {
+    ledcWrite(0, 0);
+    lampStartTime = millis();
   }
+  // publish the status to mqtt server
+  String message = isLampOn ? "ON" : "OFF";
+  mqttClient.publish(PUBLISHER_TOPIC_1, message.c_str());
 
-  if (digitalRead(BUTTON_PIN) == HIGH) {
-    isButtonPressed = false;
+  while (millis() - startTime < 1000) {
+    // do nothing
   }
+  lampTime = isLampOn ?  millis() - lampStartTime : 0;
 
-  // check if the button is pressed
-  // increment the frequency if it is
-  if (isButtonPressed && isButtonPressed != prevButtonState) {
-    Serial.println("Button pressed");
-    frequency++;
-
-    // reset the frequency if it exceeds the maximum
-    if (frequency > MAX_FREQUENCY) {
-      frequency = 10;
-    }
-
-    intervalMs = 1000 / frequency;
+  if (isACOn) {
+    ledcWrite(0, 16);
+  } else {
+    ledcWrite(0, 0);
+    acStartTime = millis();
   }
-  prevButtonState = isButtonPressed;
+  // publish the status to mqtt server
+  String message2 = isACOn ? "ON" : "OFF";
+  mqttClient.publish(PUBLISHER_TOPIC_2, message2.c_str());
 
-  // toggle the LED on/off
-  digitalWrite(LED_PIN, HIGH);
-  delay(intervalMs / 2);
-  digitalWrite(LED_PIN, LOW);
-  delay(intervalMs / 2);
+  while (millis() - startTime < 2000) {
+    // do nothing
+  }
+  acTime = isACOn ?  millis() - acStartTime : 0;
 
-  // print the frequency to the serial port
-  Serial.print("13519116: ");
-  Serial.print(frequency);
-  Serial.print(", publishing to ");
-  Serial.println(PUBLISHER_TOPIC);
-
-  // publish the frequency to mqtt server
-  String message = "13519116: " + String(frequency);
-  mqttClient.publish(PUBLISHER_TOPIC, message.c_str());
+  // publish the time to mqtt server
+  String message3 = String(lampTime);
+  mqttClient.publish(PUBLISHER_TOPIC_3, message3.c_str());
+  String message4 = String(acTime);
+  mqttClient.publish(PUBLISHER_TOPIC_4, message4.c_str());
 }
