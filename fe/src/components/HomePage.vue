@@ -1,6 +1,6 @@
 <template>
   <div class="w-[320px]">
-    <h1 class="text-2xl mb-2">Smart System</h1>
+    <h1 class="text-2xl mb-2">Smart Home Automation</h1>
     <h3 class="text-m mb-8">13519116 Jeane Mikha Erwansyah</h3>
     <h3
       class="rounded-xl border-2 border-slate-200 p-4 mb-4 select-none transition-all hover:cursor-pointer"
@@ -85,7 +85,7 @@ export default {
     });
 
     this.socket.addEventListener("message", (event) => {
-      console.log("Received message from server", event.data);
+      console.log("Received message from server", JSON.parse(event.data));
       this.handleStates(event.data);
     });
   },
@@ -119,18 +119,14 @@ export default {
       }
     },
     handleLampTimer() {
-      const data = {
-        topic: "lamp/timer",
-        message: this.lampTimer,
-      };
-      this.socket.send(JSON.stringify(data));
+      setTimeout(() => {
+        this.handleLampToggle();
+      }, this.lampTimer * 1000);
     },
     handleACTimer() {
-      const data = {
-        topic: "ac/timer",
-        message: this.acTimer,
-      };
-      this.socket.send(JSON.stringify(data));
+      setTimeout(() => {
+        this.handleACToggle();
+      }, this.acTimer * 1000);
     },
     sec2min(sec) {
       return Math.floor(sec / 60);
